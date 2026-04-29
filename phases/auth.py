@@ -98,9 +98,11 @@ def auth_page():
             if st.button("🌐 Continue with Google", use_container_width=True):
                 with st.spinner("Connecting to Google..."):
                     try:
-                        auth_res = supabase.auth.sign_in_with_oauth({"provider": "google", "options": {"redirect_to": "https://insight-ai26.streamlit.app/"}})
-                        if auth_res: st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_res.url}">', unsafe_allow_html=True)
-                    except Exception as e: 
+                        auth_res = supabase.auth.sign_in_with_oauth({"provider": "google", "options": {"redirect_to": "https://vxsiwtytqqjeyzjlzoov.supabase.co/auth/v1/callback"}})
+                        if auth_res: 
+                            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_res.url}">', unsafe_allow_html=True)
+                            components.html(f'<script>window.parent.location.href="{auth_res.url}";</script>', height=0)
+                    except Exception as e:
                         st.error("⚠️ Google login unavailable. Please check configuration.")
             
             st.markdown('</div>', unsafe_allow_html=True)
