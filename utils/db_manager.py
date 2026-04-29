@@ -42,9 +42,16 @@ def get_supabase() -> Client:
     # Load dotenv every time to ensure fresh environment
     load_dotenv(override=True)
     
-    url: str = os.environ.get("SUPABASE_URL")
-    key: str = os.environ.get("SUPABASE_KEY")
-    
+    url = os.environ.get("SUPABASE_URL")
+    if not url:
+        try: url = st.secrets.get("SUPABASE_URL")
+        except: pass
+        
+    key = os.environ.get("SUPABASE_KEY")
+    if not key:
+        try: key = st.secrets.get("SUPABASE_KEY")
+        except: pass
+        
     if not url or not key:
         return None
         

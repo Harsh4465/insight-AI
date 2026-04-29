@@ -9,6 +9,9 @@ import json
 def get_llm(provider="groq", model_name="llama-3.3-70b-versatile"):
     load_dotenv(override=True) 
     key = os.getenv("GROQ_API_KEY")
+    if not key:
+        try: key = st.secrets.get("GROQ_API_KEY")
+        except: pass
     if not key: 
         return None
     models_to_try = [model_name, "mixtral-8x7b-32768", "llama3-70b-8192"]
