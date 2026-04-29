@@ -53,14 +53,13 @@ def get_supabase() -> Client:
         except: pass
         
     if not url or not key:
-        st.error(f"Debug: URL={bool(url)}, KEY={bool(key)}. Secrets not found in environment or st.secrets.")
+        print("Missing Supabase URL or Key")
         return None
         
     try:
-        opts = ClientOptions(flow_type="implicit", storage=FileStorage())
-        return create_client(url, key, options=opts)
+        return create_client(url, key)
     except Exception as e:
-        st.error(f"Debug Supabase Init Error: {repr(e)}")
+        print(f"Supabase Init Error: {e}")
         return None
 
 import threading
