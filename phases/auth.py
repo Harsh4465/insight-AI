@@ -4,8 +4,12 @@ import time
 import streamlit.components.v1 as components
 
 def auth_page():
-    if supabase is None:
-        st.error("Database connection missing. Please configure Supabase environment variables.")
+    import os
+    url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
+    groq = os.environ.get("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
+    if not supabase:
+        st.error(f"Database connection missing. URL: {'Found' if url else 'Missing'}, KEY: {'Found' if key else 'Missing'}, GROQ: {'Found' if groq else 'Missing'}")
         st.stop()
 
     if "error" in st.query_params:
