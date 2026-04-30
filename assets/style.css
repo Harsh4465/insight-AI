@@ -169,3 +169,21 @@ footer {visibility: hidden;}
 #MainMenu {visibility: hidden;}
 header { background: transparent !important; }
 
+/* --- Mobile Responsive Fixes (Tabs) --- */
+@media (max-width: 768px) {
+    div[data-baseweb="tab-list"], div[role="tablist"] {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 5px !important;
+        overflow-x: auto !important;
+        padding-bottom: 5px !important;
+    }
+    
+    button[role="tab"] {
+        flex: 1 1 auto !important;
+        white-space: nowrap !important;
+        font-size: 0.9rem !important;
+        padding-left: 0.5rem !important;
+        padding-right: 0.5rem !important;
+    }
+}
