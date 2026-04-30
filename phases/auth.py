@@ -124,7 +124,13 @@ def auth_page():
                     with st.spinner("Setting up your secure workspace..."):
                         try:
                             res = supabase.auth.sign_up({"email": new_email, "password": new_pass})
-                            st.success("✅ Account created successfully! Please check your inbox for a verification link.")
+                            if res.session:
+                                st.session_state.user = res.user
+                                from utils.db_manager import sync_user_profile
+                                sync_user_profile(res.user)
+                                st.rerun()
+                            else:
+                                st.success("✅ Account created successfully! Please check your inbox for a verification link.")
                         except Exception as e:
                             error_str = str(e).lower()
                             if "user already registered" in error_str:
