@@ -98,7 +98,8 @@ def auth_page():
             if st.button("🌐 Continue with Google", use_container_width=True):
                 with st.spinner("Connecting to Google..."):
                     try:
-                        auth_res = supabase.auth.sign_in_with_oauth({"provider": "google", "options": {"redirect_to": "https://vxsiwtytqqjeyzjlzoov.supabase.co/auth/v1/callback"}})
+                        redirect_url = st.secrets.get("SITE_URL", "http://localhost:8501")
+                        auth_res = supabase.auth.sign_in_with_oauth({"provider": "google", "options": {"redirect_to": redirect_url}})
                         if auth_res: 
                             st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_res.url}">', unsafe_allow_html=True)
                             components.html(f'<script>window.parent.location.href="{auth_res.url}";</script>', height=0)
