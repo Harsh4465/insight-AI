@@ -73,9 +73,10 @@ def auth_page():
             
             if st.button("Sign In ➔", key="l_btn", type="primary", use_container_width=True):
                 if email and password:
+                    clean_email = email.strip()
                     with st.spinner("Authenticating..."):
                         try:
-                            res = supabase.auth.sign_in_with_password({"email": email, "password": password})
+                            res = supabase.auth.sign_in_with_password({"email": clean_email, "password": password})
                             st.session_state.user = res.user
                             from utils.db_manager import sync_user_profile
                             sync_user_profile(res.user)
@@ -121,9 +122,10 @@ def auth_page():
                 elif len(new_pass) < 6:
                     st.error("❌ Password must be at least 6 characters.")
                 else:
+                    clean_new_email = new_email.strip()
                     with st.spinner("Setting up your secure workspace..."):
                         try:
-                            res = supabase.auth.sign_up({"email": new_email, "password": new_pass})
+                            res = supabase.auth.sign_up({"email": clean_new_email, "password": new_pass})
                             if res.session:
                                 st.session_state.user = res.user
                                 from utils.db_manager import sync_user_profile
