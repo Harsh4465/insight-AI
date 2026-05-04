@@ -62,6 +62,7 @@ def phase2_prepare():
             with st_cols[idx]:
                 missing = df[col_name].isna().sum()
                 outliers = get_outlier_count(df[col_name])
+                duplicates = df.duplicated(subset=[col_name]).sum()
                 dtype = str(df[col_name].dtype)
                 
                 st.markdown(f"""
@@ -74,6 +75,10 @@ def phase2_prepare():
                         <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
                             <span style="color: var(--text-dim);">Outliers:</span>
                             <span style="color: {'var(--warning)' if outliers > 0 else 'var(--success)'}; font-weight: bold;">{outliers}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem;">
+                            <span style="color: var(--text-dim);">Duplicates:</span>
+                            <span style="color: {'var(--warning)' if duplicates > 0 else 'var(--success)'}; font-weight: bold;">{duplicates}</span>
                         </div>
                         <div style="font-size: 0.7rem; color: var(--text-dim); margin-top: 0.5rem; opacity: 0.6;">{dtype}</div>
                     </div>

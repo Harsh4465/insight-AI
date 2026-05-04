@@ -50,22 +50,78 @@ def phase3_chat():
 
     if "messages" not in st.session_state: st.session_state.messages = []
 
+    # Check if user has sent any messages
+    user_has_messaged = any(m["role"] == "user" for m in st.session_state.messages)
+    
     # --- 2. Initial Onboarding ---
-    if not st.session_state.messages:
+    if not user_has_messaged:
         st.markdown("""
             <div style='text-align:center; padding: 2rem 0;'>
-                <h1 class="hero-title">Talk to your <span class="text-gradient">Data Oracle</span></h1>
-                <p style='color:var(--text-dim); font-size: 1.2rem; max-width: 700px; margin: 0 auto;'>Ask complex questions, find hidden trends, or request a full strategic deep-dive with a single prompt.</p>
+                <h1 style="font-size: 3rem; margin-bottom: 0;">✨</h1>
+                <h2 style='color:var(--text-main); margin-bottom: 0.5rem;'>Interactive Dashboards — Just Ask!</h2>
+                <p style='color:var(--text-dim); font-size: 1.1rem; max-width: 700px; margin: 0 auto 2rem auto;'>Select any chart type below that your dataset supports.</p>
             </div>
         """, unsafe_allow_html=True)
         
-        chips = get_possible_visuals(df)
-        cols_ui = st.columns(len(chips))
-        for idx, chip in enumerate(chips):
-            with cols_ui[idx]:
-                if st.button(f"{chip['icon']} {chip['label']}", key=f"tool_{idx}", use_container_width=True, type="secondary"):
-                    st.session_state.messages.append({"role": "user", "content": chip['prompt']})
-                    st.rerun()
+        # Custom CSS for compact pills
+        st.markdown("""
+        <style>
+            div[data-testid="column"] button {
+                border-radius: 20px;
+                padding: 0.2rem 0.5rem;
+                font-size: 0.85rem;
+                height: auto;
+                min-height: 0;
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
+        num_cols = df.select_dtypes(include=['number']).columns.tolist()
+        cat_cols = df.select_dtypes(include=['object', 'category', 'bool']).columns.tolist()
+        date_cols = df.select_dtypes(include=['datetime']).columns.tolist()
+        has_geo = any(c.lower() in ['lat', 'lon', 'latitude', 'longitude', 'country', 'city', 'state'] for c in df.columns)
+
+        options = [
+            {"icon": "📊", "label": "Full Dashboard", "prompt": "Generate a full dashboard with 4 diverse charts (like bar, line, pie, KPI) showing the most important insights."},
+            {"icon": "🔍", "label": "Summarize", "prompt": "Provide a comprehensive summary of the dataset including key KPIs and a high-level overview chart."},
+            {"icon": "🧹", "label": "Clean data", "prompt": "Explain what cleaning operations could be performed on this data, like handling missing values and outliers."},
+        ]
+
+        if len(num_cols) >= 1 and len(cat_cols) >= 1:
+            options.append({"icon": "🥧", "label": "Pie + Bar", "prompt": "Create a pie chart showing category distribution and a bar chart comparing top values."})
+            options.append({"icon": "🎯", "label": "Radar", "prompt": "Create a radar chart to compare multi-dimensional variables across categories."})
+            options.append({"icon": "📊", "label": "Funnel", "prompt": "Create a funnel chart showing conversion rates or stage progression."})
+            options.append({"icon": "🌊", "label": "Waterfall", "prompt": "Generate a waterfall chart showing cumulative positive and negative contributions."})
+            
+        if len(num_cols) >= 2:
+            options.append({"icon": "📉", "label": "Scatter", "prompt": "Create a scatter plot comparing two numeric columns to uncover relationships or clusters."})
+            options.append({"icon": "🔥", "label": "Heatmap", "prompt": "Generate a correlation heatmap of the numeric columns to find hidden patterns."})
+            options.append({"icon": "🫧", "label": "Bubble", "prompt": "Create a bubble chart using 3 numeric dimensions (X, Y, and Size)."})
+            
+        if len(num_cols) >= 1:
+            options.append({"icon": "📦", "label": "Box Plot", "prompt": "Create a box plot to show the distribution and outliers of a key numeric variable."})
+            
+        if len(date_cols) >= 1 or len(cat_cols) >= 1:
+            options.append({"icon": "📈", "label": "Trends", "prompt": "Analyze the trends over time or categories. Generate line and bar charts to show these trends."})
+            
+        if has_geo:
+            options.append({"icon": "🗺️", "label": "Map", "prompt": "Generate a geographic map visualization and analyze spatial patterns."})
+
+        # Centered layout using empty side columns
+        col_spacer1, col_main, col_spacer2 = st.columns([1, 8, 1])
+        
+        with col_main:
+            # We can have up to 13 options. Let's chunk them into rows of 6.
+            chunk_size = 6
+            for i in range(0, len(options), chunk_size):
+                chunk = options[i:i+chunk_size]
+                cols = st.columns(chunk_size)
+                for idx, opt in enumerate(chunk):
+                    with cols[idx]:
+                        if st.button(f"{opt['icon']} {opt['label']}", key=f"chip_{i}_{idx}", use_container_width=True):
+                            st.session_state.messages.append({"role": "user", "content": opt['prompt']})
+                            st.rerun()
+                st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
     
     # --- 3. Chat History ---
     for idx, message in enumerate(st.session_state.messages):
@@ -81,19 +137,11 @@ def phase3_chat():
             if "structured" in message:
                 struct = message["structured"]
                 
-                # Render Visuals
+                # Render Visuals Vertically
                 visuals_list = message.get("visuals_data", [])
                 if visuals_list:
-                    # Dynamically adjust columns based on number of visuals
-                    num_viz = len(visuals_list)
-                    if num_viz > 1:
-                        viz_cols = st.columns(2)
-                        for v_idx, v_item in enumerate(visuals_list):
-                            with viz_cols[v_idx % 2]:
-                                render_hybrid_viz(v_item["type"], v_item["obj"], title=v_item["title"], key=f"viz_{idx}_{v_idx}", intent=v_item.get("intent"))
-                    else:
-                        v_item = visuals_list[0]
-                        render_hybrid_viz(v_item["type"], v_item["obj"], title=v_item["title"], key=f"viz_{idx}_0", intent=v_item.get("intent"))
+                    for v_idx, v_item in enumerate(visuals_list):
+                        render_hybrid_viz(v_item["type"], v_item["obj"], title=v_item["title"], key=f"viz_{idx}_{v_idx}", intent=v_item.get("intent"))
                 
                 # Executive Summary & Action
                 b_impact = struct.get("business_impact")
@@ -200,7 +248,6 @@ def phase3_chat():
         last_struct = st.session_state.messages[-1].get("structured", {})
         suggestions = last_struct.get("suggestions", [])
         if suggestions:
-            st.markdown("<br>", unsafe_allow_html=True)
             # Create a scrolling container or wrapped columns for chips
             s_cols = st.columns(len(suggestions[:4])) # Max 4 chips
             for s_idx, suggestion in enumerate(suggestions[:4]):
@@ -210,7 +257,6 @@ def phase3_chat():
                         st.rerun()
 
     # --- 6. Input ---
-    st.markdown("<br>", unsafe_allow_html=True)
     prompt = st.chat_input("Ask for patterns, trends, or a full strategic deep-dive...")
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})

@@ -4,12 +4,8 @@ import time
 import streamlit.components.v1 as components
 
 def auth_page():
-    import os
-    url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
-    groq = os.environ.get("GROQ_API_KEY") or st.secrets.get("GROQ_API_KEY")
-    if not supabase:
-        st.error(f"Database connection missing. URL: {'Found' if url else 'Missing'}, KEY: {'Found' if key else 'Missing'}, GROQ: {'Found' if groq else 'Missing'}")
+    if supabase is None:
+        st.error("Database connection missing. Please configure Supabase environment variables.")
         st.stop()
 
     if "error" in st.query_params:
@@ -92,21 +88,7 @@ def auth_page():
                 else:
                     st.warning("Please enter both email and password.")
 
-            st.markdown("<div style='text-align:center; margin:1rem 0; color:var(--text-dim);'>OR</div>", unsafe_allow_html=True)
-            
-            # Social Login Buttons
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🌐 Continue with Google", use_container_width=True):
-                with st.spinner("Connecting to Google..."):
-                    try:
-                        redirect_url = st.secrets.get("SITE_URL", "http://localhost:8501")
-                        auth_res = supabase.auth.sign_in_with_oauth({"provider": "google", "options": {"redirect_to": redirect_url}})
-                        if auth_res: 
-                            st.markdown(f'<meta http-equiv="refresh" content="0; url={auth_res.url}">', unsafe_allow_html=True)
-                            components.html(f'<script>window.parent.location.href="{auth_res.url}";</script>', height=0)
-                    except Exception as e:
-                        st.error("⚠️ Google login unavailable. Please check configuration.")
-            
+
             st.markdown('</div>', unsafe_allow_html=True)
 
         with tab_signup:
