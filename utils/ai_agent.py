@@ -1,23 +1,23 @@
 import os
 import pandas as pd
-from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 import streamlit as st
 import re
 import json
 
-def get_llm(provider="groq", model_name="llama-3.3-70b-versatile"):
+def get_llm(provider="google", model_name="gemini-2.5-flash"):
     load_dotenv(override=True) 
-    key = os.getenv("GROQ_API_KEY")
+    key = os.getenv("GOOGLE_API_KEY")
     if not key:
-        try: key = st.secrets.get("GROQ_API_KEY")
+        try: key = st.secrets.get("GOOGLE_API_KEY")
         except: pass
     if not key: 
         return None
-    models_to_try = [model_name, "mixtral-8x7b-32768", "llama3-70b-8192"]
+    models_to_try = [model_name, "gemini-1.5-pro", "gemini-1.5-flash"]
     for model in models_to_try:
         try:
-            return ChatGroq(api_key=key, model_name=model, temperature=0.1)
+            return ChatGoogleGenerativeAI(google_api_key=key, model=model, temperature=0.1)
         except Exception:
             continue
     return None
@@ -66,7 +66,7 @@ def get_intent_and_narrative(query, df, history=None):
        - DO NOT repeat any chart from HISTORY.
     
     SUPPORTED CHART TYPES: 
-    'bar', 'line', 'pie', 'scatter', 'heatmap', 'sunburst', 'treemap', 'map', 'waterfall', 'funnel', 'box', 'violin', 'kpi'.
+    'bar', 'line', 'pie', 'scatter', 'heatmap', 'sunburst', 'treemap', 'map', 'waterfall', 'funnel', 'box', 'violin', 'kpi', 'radar', 'bubble'.
     
     OUTPUT JSON STRUCTURE:
     {{

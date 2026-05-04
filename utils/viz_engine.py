@@ -113,6 +113,26 @@ def generate_visual(intent, df_input):
                 y = num_cols[1] if len(num_cols) > 1 else num_cols[0] if num_cols else x
             fig = px.scatter(pdf.head(1000), x=x, y=y, color=color if color else None, title=title, template="plotly_dark")
 
+        elif v_type == "bubble":
+            if not y:
+                num_cols = df.select_dtypes(include=['number']).columns.tolist()
+                y = num_cols[1] if len(num_cols) > 1 else num_cols[0] if num_cols else x
+            size_col = intent.get("size")
+            if not size_col:
+                num_cols = df.select_dtypes(include=['number']).columns.tolist()
+                size_col = num_cols[2] if len(num_cols) > 2 else y
+            # Ensure size is positive for Plotly
+            plot_df = pdf.head(1000).copy()
+            if size_col in plot_df.columns:
+                plot_df[size_col] = pd.to_numeric(plot_df[size_col], errors='coerce').fillna(0).abs()
+            fig = px.scatter(plot_df, x=x, y=y, size=size_col, color=color if color else None, title=title, template="plotly_dark", size_max=40)
+
+        elif v_type == "radar":
+            data = pdf.groupby(x).size().reset_index(name='count') if agg == "count" else pdf.groupby(x)[y].agg(agg).reset_index()
+            data = data.head(8) # Radar gets messy with too many points
+            y_col = data.columns[1]
+            fig = px.line_polar(data, r=y_col, theta=x, line_close=True, title=title, template="plotly_dark", markers=True)
+
         elif v_type in ["sunburst", "treemap"]:
             path = [color, x] if color and color != x else [x]
             fig = px.sunburst(pdf.head(500), path=path, values=y if agg != "count" else None, title=title, template="plotly_dark") if v_type == "sunburst" else \
