@@ -1,20 +1,36 @@
 import streamlit as st
 import pandas as pd
+import io
+import threading
 from utils.ai_agent import get_workspace_prime, get_dataset_summary, get_smart_suggestions, get_consultant_greeting
 from utils.ui_components import safe_dataframe
-from utils.db_manager import clear_user_charts
+from utils.db_manager import clear_user_charts, upload_dataset, list_saved_datasets, download_dataset, delete_dataset
 
 def phase2_connect():
     st.markdown('<div class="fade-in">', unsafe_allow_html=True)
     
     if 'ai_summary' not in st.session_state: st.session_state.ai_summary = None
+    user = st.session_state.get('user')
 
     # --- 1. Connection Hub ---
     st.markdown('<div class="glass-card" style="margin-bottom: 2rem; border-left: 5px solid var(--primary);">', unsafe_allow_html=True)
     st.subheader("🔌 Data Connection Hub")
     st.write("Link your raw dataset to start the intelligent analytics sequence.")
+    
     uploaded_file = st.file_uploader("Upload CSV, Excel, or Text", type=["csv", "xlsx", "xls", "xlsm", "xlsb", "txt"])
     
+    # Handle loading a saved dataset
+    loading_saved = st.session_state.get('loading_dataset')
+    if loading_saved and user:
+        with st.spinner(f"📥 Loading {loading_saved} from permanent memory..."):
+            file_bytes = download_dataset(user.id, loading_saved)
+            if file_bytes:
+                uploaded_file = io.BytesIO(file_bytes)
+                uploaded_file.name = loading_saved
+            else:
+                st.error("Failed to load dataset.")
+                st.session_state.loading_dataset = None
+
     if uploaded_file is not None:
         if 'last_uploaded' not in st.session_state or st.session_state.last_uploaded != uploaded_file.name:
             st.session_state.last_uploaded = uploaded_file.name
@@ -23,10 +39,18 @@ def phase2_connect():
             st.session_state.ai_summary = None
             
             # Clear Gallery on new upload
-            user = st.session_state.get('user')
             if user:
                 clear_user_charts(user.id)
                 st.toast("♻️ Gallery reset for new dataset.")
+                
+            # Upload to Supabase if it's a new direct upload (not loaded from saved)
+            if user and not loading_saved:
+                try:
+                    uploaded_file.seek(0)
+                    fbytes = uploaded_file.read()
+                    threading.Thread(target=upload_dataset, args=(user.id, uploaded_file.name, fbytes), daemon=True).start()
+                except Exception as e:
+                    print("Auto-save failed:", e)
 
         if st.session_state.df is None:
             try:
@@ -48,11 +72,13 @@ def phase2_connect():
                         df = pd.read_excel(uploaded_file, engine='pyxlsb')
                     else:
                         st.error(f"Unsupported file format: {fname}")
+                        st.session_state.loading_dataset = None
                         return
                 
                 if not df.empty:
                     st.session_state.df = df
                     st.toast(f"✅ {uploaded_file.name} connected!")
+                    st.session_state.loading_dataset = None
                     
                     with st.spinner("🚀 Insight AI is analyzing the data..."):
                         # Single optimized call
@@ -64,10 +90,49 @@ def phase2_connect():
                     st.rerun()
                 else:
                     st.error("⚠️ File appears to be empty.")
+                    st.session_state.loading_dataset = None
             except Exception as e:
                 st.error(f"❌ Connection Failed: {str(e)}")
                 st.info("Tip: Ensure your Excel file is not password protected and uses a standard .xlsx format.")
+                st.session_state.loading_dataset = None
     st.markdown('</div>', unsafe_allow_html=True)
+
+    # --- Saved Datasets UI ---
+    if user:
+        saved_files = list_saved_datasets(user.id)
+        if saved_files:
+            st.markdown('<div class="glass-card" style="margin-bottom: 2rem; border-left: 5px solid var(--secondary);">', unsafe_allow_html=True)
+            st.markdown("<h3 style='margin-top: 0; margin-bottom: 1rem;'>🗄️ Saved Datasets</h3>", unsafe_allow_html=True)
+            
+            for f in saved_files:
+                fname = f['name']
+                fsize = f.get('metadata', {}).get('size', 0) / 1024 / 1024 # MB
+                date = f.get('created_at', '')[:10]
+                
+                st.markdown(f"""
+                <div style="background: rgba(255,255,255,0.02); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px 15px; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <span style="font-size: 1.5rem; color: var(--text-dim);">📄</span>
+                        <div>
+                            <div style="font-weight: 600; color: var(--text-main); font-size: 0.95rem;">{fname}</div>
+                            <div style="font-size: 0.8rem; color: var(--text-dim);">{fsize:.2f} MB • Uploaded: {date}</div>
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                c_load, c_del, _ = st.columns([1.5, 1, 8])
+                with c_load:
+                    if st.button("Load", key=f"load_{fname}", type="secondary", use_container_width=True):
+                        st.session_state.loading_dataset = fname
+                        st.rerun()
+                with c_del:
+                    if st.button("🗑️", key=f"del_{fname}", use_container_width=True):
+                        delete_dataset(user.id, fname)
+                        if st.session_state.get('filename') == fname:
+                            st.session_state.df = None
+                        st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
     if st.session_state.df is not None:
         df = st.session_state.df
