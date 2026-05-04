@@ -256,7 +256,11 @@ def phase3_chat():
                         st.session_state.messages.append({"role": "user", "content": suggestion})
                         st.rerun()
 
-    # --- 6. Input ---
+    # --- 6. Input & Controls ---
+    col_spacer, col_model = st.columns([8, 2])
+    with col_model:
+        st.selectbox("AI Engine", ["Gemini (Google)", "Groq (Llama)"], key="ai_provider", label_visibility="collapsed")
+        
     prompt = st.chat_input("Ask for patterns, trends, or a full strategic deep-dive...")
     if prompt:
         st.session_state.messages.append({"role": "user", "content": prompt})
