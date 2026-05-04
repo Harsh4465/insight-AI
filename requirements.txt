@@ -9,7 +9,6 @@ folium>=0.14.0
 streamlit-folium>=0.15.0
 langchain>=0.2.0
 langchain-experimental>=0.0.60
-langchain-groq>=0.1.0
 langchain-google-genai>=1.0.0
 python-dotenv>=1.0.0
 openpyxl>=3.1.0
