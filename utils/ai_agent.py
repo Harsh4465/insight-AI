@@ -1,25 +1,34 @@
 import os
 import pandas as pd
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from dotenv import load_dotenv
 import streamlit as st
 import re
 import json
 
-def get_llm(provider="google", model_name="gemini-2.5-flash"):
+def get_llm():
     load_dotenv(override=True) 
-    key = os.getenv("GOOGLE_API_KEY")
-    if not key:
-        try: key = st.secrets.get("GOOGLE_API_KEY")
-        except: pass
-    if not key: 
-        return None
-    models_to_try = [model_name, "gemini-1.5-pro", "gemini-1.5-flash"]
-    for model in models_to_try:
-        try:
-            return ChatGoogleGenerativeAI(google_api_key=key, model=model, temperature=0.1)
-        except Exception:
-            continue
+    provider = st.session_state.get('ai_provider', 'Gemini (Google)')
+    
+    if "Gemini" in provider:
+        key = os.getenv("GOOGLE_API_KEY")
+        if not key:
+            try: key = st.secrets.get("GOOGLE_API_KEY")
+            except: pass
+        if not key: return None
+        for model in ["gemini-2.5-flash", "gemini-1.5-pro", "gemini-1.5-flash"]:
+            try: return ChatGoogleGenerativeAI(google_api_key=key, model=model, temperature=0.1)
+            except: continue
+    else:
+        key = os.getenv("GROQ_API_KEY")
+        if not key:
+            try: key = st.secrets.get("GROQ_API_KEY")
+            except: pass
+        if not key: return None
+        for model in ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "llama3-70b-8192"]:
+            try: return ChatGroq(api_key=key, model_name=model, temperature=0.1)
+            except: continue
     return None
 
 def get_consultant_greeting(df):
@@ -93,6 +102,9 @@ def get_intent_and_narrative(query, df, history=None):
             return json.loads(re.sub(r'[\r\n\t]', ' ', match.group(0)))
         return {"answer": text, "visuals": [], "insights": [], "suggestions": []}
     except Exception as e:
+        error_msg = str(e).lower()
+        if "429" in error_msg or "resource_exhausted" in error_msg or "quota" in error_msg:
+            return {"answer": "⚠️ **Google Gemini API Limit Reached!**\n\nYou've exceeded the free tier quota for Google Gemini. Please wait a minute and try again, or **switch to Groq (Llama)** using the model selector below the chat to continue your analysis immediately.", "visuals": [], "insights": [], "suggestions": []}
         return {"answer": f"Analysis interrupted: {e}", "visuals": [], "insights": [], "suggestions": []}
 
 def auto_clean(df):
