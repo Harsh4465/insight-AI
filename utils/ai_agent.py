@@ -9,7 +9,8 @@ import json
 
 def get_llm():
     load_dotenv(override=True) 
-    provider = st.session_state.get('ai_provider', 'Gemini (Google)')
+    # Default to Groq everywhere unless specifically set to Gemini
+    provider = st.session_state.get('ai_provider', 'Groq (Llama)')
     
     if "Gemini" in provider:
         key = os.getenv("GOOGLE_API_KEY")
@@ -25,9 +26,11 @@ def get_llm():
         if not key:
             try: key = st.secrets.get("GROQ_API_KEY")
             except: pass
+        
         if not key: return None
+        os.environ["GROQ_API_KEY"] = key
         for model in ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "llama3-70b-8192"]:
-            try: return ChatGroq(api_key=key, model_name=model, temperature=0.1)
+            try: return ChatGroq(model_name=model, temperature=0.1)
             except: continue
     return None
 

@@ -53,13 +53,13 @@ def get_supabase() -> Client:
         except: pass
         
     if not url or not key:
-        print("Missing Supabase URL or Key")
         return None
         
     try:
-        return create_client(url, key)
+        opts = ClientOptions(flow_type="implicit", storage=FileStorage())
+        return create_client(url, key, options=opts)
     except Exception as e:
-        print(f"Supabase Init Error: {e}")
+        print(f"Connection Error: {e}")
         return None
 
 import threading
@@ -130,4 +130,52 @@ def clear_user_charts(user_id):
         return True
     except Exception as e:
         st.error(f"Supabase Clear Error: {e}")
+        return False
+
+# --- Dataset Storage Functions ---
+
+def upload_dataset(user_id, filename, file_bytes):
+    if not supabase: return False
+    try:
+        path = f"{user_id}/{filename}"
+        supabase.storage.from_("user_datasets").upload(
+            file=file_bytes,
+            path=path,
+            file_options={"upsert": "true"}
+        )
+        return True
+    except Exception as e:
+        print(f"Dataset Upload Error: {e}")
+        return False
+
+def list_saved_datasets(user_id):
+    if not supabase: return []
+    try:
+        # List files in the user's folder
+        res = supabase.storage.from_("user_datasets").list(user_id)
+        # Supabase list() returns a list of dictionaries with 'name', 'metadata' etc.
+        # Sometimes it returns a placeholder '.emptyFolderPlaceholder', filter it out
+        files = [f for f in res if f['name'] != '.emptyFolderPlaceholder']
+        return files
+    except Exception as e:
+        print(f"Dataset List Error: {e}")
+        return []
+
+def download_dataset(user_id, filename):
+    if not supabase: return None
+    try:
+        path = f"{user_id}/{filename}"
+        return supabase.storage.from_("user_datasets").download(path)
+    except Exception as e:
+        print(f"Dataset Download Error: {e}")
+        return None
+
+def delete_dataset(user_id, filename):
+    if not supabase: return False
+    try:
+        path = f"{user_id}/{filename}"
+        supabase.storage.from_("user_datasets").remove([path])
+        return True
+    except Exception as e:
+        print(f"Dataset Delete Error: {e}")
         return False
