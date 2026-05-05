@@ -6,38 +6,6 @@ from supabase.lib.client_options import ClientOptions
 from dotenv import load_dotenv
 import json
 
-class FileStorage:
-    def __init__(self, filename=".supabase_session.json"):
-        self.filename = filename
-
-    def get_item(self, key: str) -> str | None:
-        try:
-            with open(self.filename, "r") as f:
-                return json.load(f).get(key)
-        except Exception:
-            return None
-
-    def set_item(self, key: str, value: str) -> None:
-        try:
-            with open(self.filename, "r") as f:
-                data = json.load(f)
-        except Exception:
-            data = {}
-        data[key] = value
-        with open(self.filename, "w") as f:
-            json.dump(data, f)
-
-    def remove_item(self, key: str) -> None:
-        try:
-            with open(self.filename, "r") as f:
-                data = json.load(f)
-            if key in data:
-                del data[key]
-                with open(self.filename, "w") as f:
-                    json.dump(data, f)
-        except Exception:
-            pass
-
 def get_supabase() -> Client:
     # Load dotenv every time to ensure fresh environment
     load_dotenv(override=True)
@@ -57,7 +25,7 @@ def get_supabase() -> Client:
         return None
         
     try:
-        opts = ClientOptions(flow_type="implicit", storage=FileStorage())
+        opts = ClientOptions(flow_type="implicit")
         return create_client(url, key, options=opts)
     except Exception as e:
         st.error(f"Supabase Connection Internal Error: {e}")
