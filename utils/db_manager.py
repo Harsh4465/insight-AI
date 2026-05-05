@@ -25,8 +25,7 @@ def get_supabase() -> Client:
         return None
         
     try:
-        opts = ClientOptions(flow_type="implicit")
-        return create_client(url, key, options=opts)
+        return create_client(url, key)
     except Exception as e:
         st.error(f"Supabase Connection Internal Error: {e}")
         return None
