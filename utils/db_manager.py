@@ -53,13 +53,14 @@ def get_supabase() -> Client:
         except: pass
         
     if not url or not key:
+        st.error(f"Auth Keys Missing! URL present: {bool(url)}, Key present: {bool(key)}")
         return None
         
     try:
         opts = ClientOptions(flow_type="implicit", storage=FileStorage())
         return create_client(url, key, options=opts)
     except Exception as e:
-        print(f"Connection Error: {e}")
+        st.error(f"Supabase Connection Internal Error: {e}")
         return None
 
 import threading
