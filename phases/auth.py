@@ -10,13 +10,9 @@ def auth_page():
 
     if "error" in st.query_params:
         err_msg = st.query_params.get("error_description", st.query_params["error"])
-        st.error(f"Google Login Failed: {err_msg}")
-        st.info("Tip: Please check your Google Cloud Client ID & Secret in the Supabase Dashboard.")
-
-    # (Old JS bridge removed)
+        st.error(f"Login Failed: {err_msg}")
 
     # --- COMPONENT BRIDGE FOR IMPLICIT FLOW ---
-    import streamlit.components.v1 as components
     import os
     
     # Load the custom component
@@ -26,7 +22,6 @@ def auth_page():
     hash_val = auth_bridge()
     
     if hash_val and isinstance(hash_val, str) and "access_token=" in hash_val:
-        # Parse the hash string (#access_token=...&refresh_token=...)
         from urllib.parse import parse_qs
         params = parse_qs(hash_val.lstrip("#"))
         token = params.get("access_token", [None])[0]
@@ -45,29 +40,33 @@ def auth_page():
     elif hash_val and isinstance(hash_val, str) and hash_val.startswith("ERROR:"):
         st.error(f"Bridge Error: {hash_val}")
 
-    # --- UI LAYOUT ---
+    # --- PREMIUM SAAS AUTH UI ---
     st.markdown('<div class="fade-in">', unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([1, 4, 1])
+    # Centered container for Auth
+    col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         st.markdown("""
-            <div style="text-align: center; margin-bottom: 2rem; margin-top: 2rem;">
-                <h1 class="hero-title"><span class="text-gradient">Insight AI</span></h1>
-                <p style="color: var(--text-dim); font-size: 1.1rem;">The Future of Intelligent Data Analytics</p>
+            <div style="text-align: center; margin-bottom: 2rem; margin-top: 5rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">🔮</div>
+                <h1 style="font-family: 'Outfit'; font-weight: 800; font-size: 2.5rem; margin-bottom: 0.5rem;">
+                    Welcome to <span class="text-gradient">Insight AI</span>
+                </h1>
+                <p style="color: var(--text-dim); font-size: 1.1rem;">Secure access to your intelligent data workspace.</p>
             </div>
         """, unsafe_allow_html=True)
 
-        # Tabs for Login/Signup
-        tab_login, tab_signup = st.tabs(["🔐 Login", "✨ Create Account"])
+        tab_login, tab_signup = st.tabs(["🔐 Sign In", "✨ Create Account"])
 
         with tab_login:
-            st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-            st.subheader("Welcome Back")
-            email = st.text_input("Email", key="login_email", placeholder="name@company.com")
+            st.markdown('<div class="glass-card" style="padding: 2.5rem;">', unsafe_allow_html=True)
+            st.markdown("<h3 style='margin-bottom: 1.5rem;'>Sign In to Insight AI</h3>", unsafe_allow_html=True)
+            email = st.text_input("Email Address", key="login_email", placeholder="name@company.com")
             password = st.text_input("Password", type="password", key="login_pass", placeholder="••••••••")
             
-            if st.button("Sign In ➔", key="l_btn", type="primary", use_container_width=True):
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Access Workspace ➔", key="l_btn", type="primary", use_container_width=True):
                 if email and password:
                     clean_email = email.strip()
                     with st.spinner("Authenticating..."):
@@ -88,24 +87,24 @@ def auth_page():
                 else:
                     st.warning("Please enter both email and password.")
 
-
             st.markdown('</div>', unsafe_allow_html=True)
 
         with tab_signup:
-            st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-            st.subheader("Join the Hub")
-            new_email = st.text_input("Email Address", key="reg_email", placeholder="name@company.com")
-            new_pass = st.text_input("Choose Password", type="password", key="reg_pass", placeholder="Min 6 characters", help="Password must be at least 6 characters long.")
+            st.markdown('<div class="glass-card" style="padding: 2.5rem;">', unsafe_allow_html=True)
+            st.markdown("<h3 style='margin-bottom: 1.5rem;'>Start Your Free Trial</h3>", unsafe_allow_html=True)
+            new_email = st.text_input("Work Email", key="reg_email", placeholder="name@company.com")
+            new_pass = st.text_input("Create Password", type="password", key="reg_pass", placeholder="Min 6 characters", help="Password must be at least 6 characters long.")
             confirm_pass = st.text_input("Confirm Password", type="password", key="reg_conf_pass")
             
-            if st.button("Create Free Account ✨", key="s_btn", type="primary", use_container_width=True):
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("Create Account ✨", key="s_btn", type="primary", use_container_width=True):
                 if new_pass != confirm_pass:
                     st.error("❌ Passwords do not match.")
                 elif len(new_pass) < 6:
                     st.error("❌ Password must be at least 6 characters.")
                 else:
                     clean_new_email = new_email.strip()
-                    with st.spinner("Setting up your secure workspace..."):
+                    with st.spinner("Provisioning your secure environment..."):
                         try:
                             res = supabase.auth.sign_up({"email": clean_new_email, "password": new_pass})
                             if res.session:
@@ -114,14 +113,13 @@ def auth_page():
                                 sync_user_profile(res.user)
                                 st.rerun()
                             else:
-                                st.success("✅ Account created successfully! Please check your inbox for a verification link.")
+                                st.success("✅ Account created! Please check your inbox for the verification link.")
                         except Exception as e:
                             error_str = str(e).lower()
                             if "user already registered" in error_str:
-                                st.warning("ℹ️ This email is already registered. Please switch to the Login tab.")
+                                st.warning("ℹ️ This email is already registered. Please switch to the Sign In tab.")
                             else:
                                 st.error(f"⚠️ Signup failed: {e}")
             st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
-

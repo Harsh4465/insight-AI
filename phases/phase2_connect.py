@@ -98,7 +98,7 @@ def phase2_connect():
     st.markdown('</div>', unsafe_allow_html=True)
 
     # --- Saved Datasets UI ---
-    if user:
+    if user and st.session_state.df is None:
         saved_files = list_saved_datasets(user.id)
         if saved_files:
             st.markdown('<div class="glass-card" style="margin-bottom: 2rem; border-left: 5px solid var(--secondary);">', unsafe_allow_html=True)

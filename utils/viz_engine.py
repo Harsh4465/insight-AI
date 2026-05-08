@@ -23,6 +23,34 @@ def fuzzy_get_col(col_name, df):
 def ensure_numeric_safe(series):
     return pd.to_numeric(series, errors='coerce')
 
+def attempt_auto_fallback(df, original_title):
+    if df is None or df.empty:
+        return ("kpi", {"value": "Insufficient Data", "label": f"{original_title} (Cannot Render)"})
+    
+    try:
+        # 1. Try to find the most interesting categorical column (ignore IDs)
+        cat_cols = [c for c in df.columns if 1 < df[c].nunique() < 30 and not str(c).lower().endswith('id')]
+        if cat_cols:
+            x = cat_cols[0]
+            data = df[x].value_counts().head(10).reset_index()
+            data.columns = [x, 'count']
+            fig = px.bar(data, x=x, y='count', title=f"Auto-Repaired: {original_title}", template="plotly_dark", color_discrete_sequence=["#10b981"])
+            fig.update_layout(font_family="Inter", margin=dict(l=20, r=20, t=50, b=20), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+            return ("plotly", fig)
+            
+        # 2. Try the first numeric column (ignore IDs)
+        num_cols = [c for c in df.select_dtypes(include=['number']).columns if not str(c).lower().endswith('id') and str(c).lower() != 'id']
+        if num_cols:
+            x = num_cols[0]
+            fig = px.histogram(df.head(1000), x=x, title=f"Auto-Repaired: {original_title}", template="plotly_dark", color_discrete_sequence=["#10b981"])
+            fig.update_layout(font_family="Inter", margin=dict(l=20, r=20, t=50, b=20), plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
+            return ("plotly", fig)
+            
+    except Exception as e:
+        print(f"Fallback generation failed: {e}")
+        
+    return ("kpi", {"value": "Insufficient Data", "label": f"{original_title} (Cannot Render)"})
+
 def generate_visual(intent, df_input):
     if df_input is None or df_input.empty: return (None, None)
     df = df_input.copy()
@@ -51,15 +79,21 @@ def generate_visual(intent, df_input):
         cat_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
         x = cat_cols[0] if cat_cols else df.columns[0]
 
-    # --- 3. Processing ---
+    # --- 3. Processing & Bulletproof Data Handling ---
     try:
-        pdf = df.dropna(subset=[x])
+        pdf = df.copy()
+        
+        # Gracefully handle categorical NaNs so we don't lose rows
+        if pdf[x].dtype == 'object' or pd.api.types.is_categorical_dtype(pdf[x]):
+            pdf[x] = pdf[x].fillna("Unknown")
+        else:
+            pdf = pdf.dropna(subset=[x])
+
         if y and agg != "count":
             pdf = pdf.dropna(subset=[y])
 
         if pdf.empty:
-            # If no data after dropna, return as table to be safe
-            return ("table", df.head(10))
+            return ("kpi", {"value": "No Data", "label": f"{title} (Data Missing)"})
 
         # --- 4. Chart Generation ---
         fig = None
@@ -88,7 +122,6 @@ def generate_visual(intent, df_input):
             else:
                 data = pdf.groupby(x).size().reset_index(name='count') if agg == "count" else pdf.groupby(x)[y].agg(agg).reset_index()
                 data = data.sort_values(by=data.columns[1], ascending=False).head(15)
-                # Fix: Do not force color=x to prevent legend spam and invisible datetime bars
                 fig = px.bar(data, x=x, y=data.columns[1], title=title, template="plotly_dark", color_discrete_sequence=["#6366f1"])
 
         elif v_type == "line":
@@ -111,7 +144,8 @@ def generate_visual(intent, df_input):
             if not y:
                 num_cols = df.select_dtypes(include=['number']).columns.tolist()
                 y = num_cols[1] if len(num_cols) > 1 else num_cols[0] if num_cols else x
-            fig = px.scatter(pdf.head(1000), x=x, y=y, color=color if color else None, title=title, template="plotly_dark")
+            # Limit points to prevent browser freeze
+            fig = px.scatter(pdf.head(300), x=x, y=y, color=color if color else None, title=title, template="plotly_dark")
 
         elif v_type == "bubble":
             if not y:
@@ -121,22 +155,21 @@ def generate_visual(intent, df_input):
             if not size_col:
                 num_cols = df.select_dtypes(include=['number']).columns.tolist()
                 size_col = num_cols[2] if len(num_cols) > 2 else y
-            # Ensure size is positive for Plotly
-            plot_df = pdf.head(1000).copy()
+            plot_df = pdf.head(300).copy()
             if size_col in plot_df.columns:
                 plot_df[size_col] = pd.to_numeric(plot_df[size_col], errors='coerce').fillna(0).abs()
             fig = px.scatter(plot_df, x=x, y=y, size=size_col, color=color if color else None, title=title, template="plotly_dark", size_max=40)
 
         elif v_type == "radar":
             data = pdf.groupby(x).size().reset_index(name='count') if agg == "count" else pdf.groupby(x)[y].agg(agg).reset_index()
-            data = data.head(8) # Radar gets messy with too many points
+            data = data.head(8) 
             y_col = data.columns[1]
             fig = px.line_polar(data, r=y_col, theta=x, line_close=True, title=title, template="plotly_dark", markers=True)
 
         elif v_type in ["sunburst", "treemap"]:
             path = [color, x] if color and color != x else [x]
-            fig = px.sunburst(pdf.head(500), path=path, values=y if agg != "count" else None, title=title, template="plotly_dark") if v_type == "sunburst" else \
-                  px.treemap(pdf.head(500), path=path, values=y if agg != "count" else None, title=title, template="plotly_dark")
+            fig = px.sunburst(pdf.head(200), path=path, values=y if agg != "count" else None, title=title, template="plotly_dark") if v_type == "sunburst" else \
+                  px.treemap(pdf.head(200), path=path, values=y if agg != "count" else None, title=title, template="plotly_dark")
 
         elif v_type == "heatmap":
             num_df = df.select_dtypes(include=[np.number])
@@ -179,27 +212,40 @@ def generate_visual(intent, df_input):
             
         # --- 5. Final Safety Check & Data Validation ---
         if fig and hasattr(fig, 'data') and len(fig.data) > 0:
-            # Check if all data in traces is null or empty
             has_actual_data = False
             for trace in fig.data:
+                # Check all possible data attributes for different chart types
                 if hasattr(trace, 'y') and trace.y is not None and len(trace.y) > 0: has_actual_data = True
                 elif hasattr(trace, 'values') and trace.values is not None and len(trace.values) > 0: has_actual_data = True
+                elif hasattr(trace, 'x') and trace.x is not None and len(trace.x) > 0: has_actual_data = True
+                elif hasattr(trace, 'z') and trace.z is not None and len(trace.z) > 0: has_actual_data = True
+                elif hasattr(trace, 'r') and trace.r is not None and len(trace.r) > 0: has_actual_data = True
+                elif hasattr(trace, 'labels') and trace.labels is not None and len(trace.labels) > 0: has_actual_data = True
             
             if has_actual_data:
+                fig.update_layout(
+                    font_family="Inter",
+                    margin=dict(l=20, r=20, t=50, b=20),
+                    plot_bgcolor="rgba(0,0,0,0)",
+                    paper_bgcolor="rgba(0,0,0,0)"
+                )
                 return ("plotly", fig)
         
-        # If Plotly has no data, return a styled table instead of a black box
-        return ("table", pdf.head(20))
+        # If Plotly has no data, try auto-fallback instead of returning Insufficient Data KPI
+        return attempt_auto_fallback(pdf, title)
 
     except Exception as e:
         print(f"Bulletproof Viz Error: {e}")
-        return ("table", df_input.head(10))
+        return attempt_auto_fallback(pdf, title)
 
 def render_hybrid_viz(viz_type, viz_obj, title="Insight", key=None, show_pin=True, intent=None):
     if viz_obj is None: return
     
     if viz_type == "plotly": 
-        st.plotly_chart(viz_obj, use_container_width=True, key=key)
+        try:
+            st.plotly_chart(viz_obj, use_container_width=True, key=key, on_select="rerun", selection_mode="points")
+        except TypeError:
+            st.plotly_chart(viz_obj, use_container_width=True, key=key)
     elif viz_type == "folium": 
         st_folium(viz_obj, width=None, height=400, key=f"folium_{key}" if key else None)
     elif viz_type == "table":

@@ -7,11 +7,9 @@ import streamlit as st
 import re
 import json
 
-def get_llm():
+@st.cache_resource
+def _get_cached_llm(provider: str):
     load_dotenv(override=True) 
-    # Default to Groq everywhere unless specifically set to Gemini
-    provider = st.session_state.get('ai_provider', 'Groq (Llama)')
-    
     if "Gemini" in provider:
         key = os.getenv("GOOGLE_API_KEY")
         if not key:
@@ -34,6 +32,10 @@ def get_llm():
             except: continue
     return None
 
+def get_llm():
+    provider = st.session_state.get('ai_provider', 'Groq (Llama)')
+    return _get_cached_llm(provider)
+
 def get_consultant_greeting(df):
     llm = get_llm()
     if not llm: return "Hello! I'm your Senior AI Data Strategist. Ready to extract intelligence from your metrics."
@@ -51,6 +53,11 @@ def get_intent_and_narrative(query, df, history=None):
 
     cols = df.columns.tolist()
     dtypes_str = ", ".join([f"'{c}': {str(t)}" for c, t in df.dtypes.items()])
+    
+    # NEW: Inform AI about missing data so it avoids empty columns
+    missing_info = [f"'{c}' ({df[c].isna().sum()} missing)" for c in cols if df[c].isna().sum() > 0]
+    missing_str = ", ".join(missing_info) if missing_info else "None"
+    
     head = df.head(3).to_string()
     
     # Check for geographic potential
@@ -61,6 +68,7 @@ def get_intent_and_narrative(query, df, history=None):
     
     USER QUERY: "{query}"
     DATA SCHEMA (Crucial for X/Y axes): {dtypes_str}
+    MISSING DATA PROFILE: {missing_str}
     SAMPLE DATA: {head}
     HISTORY: {history if history else 'None'}
 
@@ -73,6 +81,7 @@ def get_intent_and_narrative(query, df, history=None):
        - 'x' should ALWAYS be a Dimension (categorical, datetime, or grouped numeric). Do NOT use High-Cardinality IDs (like 'PassengerId' or 'UUID') as 'x'.
        - 'y' MUST be a Metric (numeric types like float64/int64) if 'agg' is sum/mean. 
        - If 'y' is categorical/object, 'agg' MUST be "count".
+       - DO NOT use columns with high missing data (refer to MISSING DATA PROFILE) as 'x' or 'y' unless explicitly requested.
     4. DIVERSITY (CRITICAL RULE): 
        - NEVER repeat the exact same 'x' and 'y' column combination in the same response. Every chart in the 'visuals' array MUST explore different columns or use a completely different perspective.
        - DO NOT repeat any chart from HISTORY.
@@ -138,6 +147,22 @@ def auto_clean(df):
                 report["outlier_ledger"].append({"col": col, "count": int(mask.sum()), "lower": round(l,2), "upper": round(u,2)})
                 df[col] = df[col].clip(l, u)
     return df, report
+
+def get_cleaning_narrative(report):
+    llm = get_llm()
+    if not llm: return "Automated data cleaning and imputation sequence completed."
+    prompt = f"""
+    You are an AI Data Engineer. You just ran an automated data cleaning script.
+    Here is the ledger of changes made: {json.dumps(report)}
+    
+    TASK: Write a brief, professional 2-sentence summary explaining to the user what you just did to prepare their dataset.
+    Make it sound smart but accessible. Do not list every single column, just summarize the major actions (e.g., "I imputed missing values and capped anomalies to stabilize your metrics"). No ** bolding.
+    """
+    try:
+        response = llm.invoke(prompt)
+        return re.sub(r'\*\*', '', response.content.strip())
+    except:
+        return "Automated data cleaning and imputation sequence completed."
 
 def get_executive_summary(title, intent, df):
     llm = get_llm()
@@ -207,6 +232,57 @@ def get_workspace_prime(df):
     except: pass
     return {"greeting": "Ready for analysis.", "summary": "Dataset mapped.", "suggestions": ["Trend Analysis", "Anomalies"]}
 
+def generate_template_charts(template_name, df):
+    llm = get_llm()
+    if not llm: return []
+    
+    cols = df.columns.tolist()
+    dtypes_str = ", ".join([f"'{c}': {str(t)}" for c, t in df.dtypes.items()])
+    
+    # Give explicit flavor to each template so they never overlap
+    template_rules = {
+        "Executive Overview": "Focus on high-level sums, counts, and simple visuals. Use 'bar', 'pie', and 'funnel'. Keep it high-level.",
+        "Performance & Deep Dive": "Focus on correlations, distributions, and complex metrics. Use 'scatter', 'box', 'heatmap', 'radar'. Explore relationships.",
+        "Demographics & Trends": "Focus on segments, time-series (if available), or geospatial. Use 'line', 'sunburst', 'treemap', 'bubble'. Explore groupings."
+    }
+    
+    specific_rule = template_rules.get(template_name, "Create diverse charts.")
+    
+    prompt = f"""
+    You are an AI Dashboard Architect. 
+    The user wants to generate a "{template_name}" dashboard template.
+    
+    DATA SCHEMA: {dtypes_str}
+    
+    TEMPLATE RULE: {specific_rule}
+    
+    TASK: Generate an array of exactly 6 strategic visual intents that fit this template perfectly.
+    - Exactly 2 must be 'kpi' type (high-level metrics).
+    - 4 should be diverse charts (MUST strictly follow the TEMPLATE RULE above).
+    - Ensure 'x' and 'y' column names EXACTLY match the schema provided.
+    - NEVER repeat the same combination of x and y in this array.
+    - Do NOT use columns with high missing data.
+    
+    JSON FORMAT MUST BE EXACTLY:
+    {{
+       "visuals": [
+           {{"type": "kpi", "x": null, "y": "col_name", "agg": "sum", "title": "Total Sales KPI"}},
+           {{"type": "bar", "x": "col1", "y": "col2", "agg": "mean", "title": "Average by Category"}}
+       ]
+    }}
+    
+    Return ONLY JSON. No ** bolding.
+    """
+    try:
+        response = llm.invoke(prompt)
+        match = re.search(r'\{.*\}', response.content, re.DOTALL)
+        if match:
+            data = json.loads(match.group(0))
+            return data.get("visuals", [])
+    except Exception as e:
+        print(f"Template Gen Error: {e}")
+    return []
+
 def get_ppt_storytelling(db_charts, chat_history=None, cols=None):
     """Generates a cohesive storytelling narrative for a PPTX deck based on all pinned insights, user intent, and data domain."""
     llm = get_llm()
@@ -235,9 +311,13 @@ def get_ppt_storytelling(db_charts, chat_history=None, cols=None):
     {context}
     
     TASK: Provide a JSON with:
-    1. "exec_summary": A high-level overview of what this data means globally, referencing the user's overarching goals (3-4 sentences).
-    2. "slide_stories": For EACH insight title provided, write a 2-paragraph "story" that explains the 'why', connects it to the bigger picture, and aligns with the dataset's true domain. Use the EXACT insight title as the key.
-    3. "strategic_recommendations": 3 clear, highly domain-specific action points based on the collective data.
+    1. "exec_summary": A high-level overview of what this data means globally (2-3 sentences).
+    2. "slide_stories": For EACH insight title provided, write a 3-part strategic "story".
+       - Part 1: What exactly this metric/chart represents.
+       - Part 2: The deeper strategic reason behind tracking this pattern or metric.
+       - Part 3: What this means for business/domain decision-making.
+       CRITICAL: Keep each part to exactly 1 concise sentence to ensure the JSON parses correctly. If exact data values are missing, explain why the metric itself is strategically vital. Use the EXACT insight title as the JSON key.
+    3. "strategic_recommendations": 3 clear, highly domain-specific action points.
     
     Return ONLY JSON. No ** bold.
     """

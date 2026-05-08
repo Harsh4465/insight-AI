@@ -30,6 +30,13 @@ def local_css(file_name):
 
 local_css("assets/style.css")
 
+# Background Animations
+st.markdown("""
+<div class="bg-shape shape1"></div>
+<div class="bg-shape shape2"></div>
+<div class="bg-shape shape3"></div>
+""", unsafe_allow_html=True)
+
 # Session State Initialization
 if 'user' not in st.session_state:
     st.session_state.user = None

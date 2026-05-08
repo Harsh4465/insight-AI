@@ -67,7 +67,11 @@ def save_chart_to_db(user_id, title, viz_type, intent, ai_memo=""):
         res = supabase.table("saved_charts").insert(data).execute()
         return True
     except Exception as e:
-        st.error(f"Supabase Insert Error: {e}")
+        if "JWT expired" in str(e):
+            st.error("⚠️ Security Session Expired. Please log in again.")
+            st.session_state.user = None
+        else:
+            st.error(f"Supabase Insert Error: {e}")
         return False
 
 def load_charts_from_db(user_id):
@@ -77,7 +81,11 @@ def load_charts_from_db(user_id):
         res = supabase.table("saved_charts").select("*").eq("user_id", user_id).order("created_at", desc=True).execute()
         return res.data
     except Exception as e:
-        st.error(f"Supabase Load Error: {e}")
+        if "JWT expired" in str(e):
+            st.error("⚠️ Security Session Expired. Please log in again.")
+            st.session_state.user = None
+        else:
+            st.error(f"Supabase Load Error: {e}")
         return []
 
 def delete_chart_from_db(chart_id):
@@ -87,7 +95,11 @@ def delete_chart_from_db(chart_id):
         supabase.table("saved_charts").delete().eq("id", chart_id).execute()
         return True
     except Exception as e:
-        st.error(f"Supabase Delete Error: {e}")
+        if "JWT expired" in str(e):
+            st.error("⚠️ Security Session Expired. Please log in again.")
+            st.session_state.user = None
+        else:
+            st.error(f"Supabase Delete Error: {e}")
         return False
 
 def clear_user_charts(user_id):
@@ -97,7 +109,10 @@ def clear_user_charts(user_id):
         supabase.table("saved_charts").delete().eq("user_id", user_id).execute()
         return True
     except Exception as e:
-        st.error(f"Supabase Clear Error: {e}")
+        if "JWT expired" in str(e):
+            st.session_state.user = None
+        else:
+            st.error(f"Supabase Clear Error: {e}")
         return False
 
 # --- Dataset Storage Functions ---
@@ -113,7 +128,10 @@ def upload_dataset(user_id, filename, file_bytes):
         )
         return True
     except Exception as e:
-        print(f"Dataset Upload Error: {e}")
+        if "JWT expired" in str(e):
+            print("Upload failed: JWT expired")
+        else:
+            print(f"Dataset Upload Error: {e}")
         return False
 
 def list_saved_datasets(user_id):
@@ -126,7 +144,11 @@ def list_saved_datasets(user_id):
         files = [f for f in res if f['name'] != '.emptyFolderPlaceholder']
         return files
     except Exception as e:
-        print(f"Dataset List Error: {e}")
+        if "JWT expired" in str(e):
+            st.error("⚠️ Security Session Expired. Please log in again.")
+            st.session_state.user = None
+        else:
+            print(f"Dataset List Error: {e}")
         return []
 
 def download_dataset(user_id, filename):
@@ -135,7 +157,11 @@ def download_dataset(user_id, filename):
         path = f"{user_id}/{filename}"
         return supabase.storage.from_("user_datasets").download(path)
     except Exception as e:
-        print(f"Dataset Download Error: {e}")
+        if "JWT expired" in str(e):
+            st.error("⚠️ Security Session Expired. Please log in again.")
+            st.session_state.user = None
+        else:
+            print(f"Dataset Download Error: {e}")
         return None
 
 def delete_dataset(user_id, filename):
@@ -145,5 +171,9 @@ def delete_dataset(user_id, filename):
         supabase.storage.from_("user_datasets").remove([path])
         return True
     except Exception as e:
-        print(f"Dataset Delete Error: {e}")
+        if "JWT expired" in str(e):
+            st.error("⚠️ Security Session Expired. Please log in again.")
+            st.session_state.user = None
+        else:
+            print(f"Dataset Delete Error: {e}")
         return False
