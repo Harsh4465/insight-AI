@@ -4,6 +4,8 @@ Insight AI is a cutting-edge, "Zero-Labor" Data Analyst web application. It tran
 
 Instead of writing code or manually building charts, you simply connect your data and **talk** to the AI.
 
+Website live link - https://insight-ai18.streamlit.app/
+
 ---
 
 ## 🌟 How to Use Insight AI
